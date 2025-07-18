@@ -11,20 +11,48 @@ export const formataHora = (data: Date): string => {
 };
 
 export const calculaHorasTrabalhadas = (registros: Registro[]): string => {
-  let totalMilisegundos = 0;
-  let entradaAnterior: Date | null = null;
+  let totalWorkedMillis = 0;
+  let lastPunchTime: Date | null = null;
+  let isWorking = false;
+  let isOnLunch = false;
+
+  // Ensure records are sorted by timestamp
+  registros.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   registros.forEach(registro => {
+    const currentPunchTime = new Date(registro.timestamp);
+
     if (registro.tipo === 'entrada') {
-      entradaAnterior = new Date(registro.timestamp);
-    } else if (registro.tipo === 'saída' && entradaAnterior) {
-      totalMilisegundos += new Date(registro.timestamp).getTime() - entradaAnterior.getTime();
-      entradaAnterior = null;
+      lastPunchTime = currentPunchTime;
+      isWorking = true;
+      isOnLunch = false; // Should not be on lunch when entering
+    } else if (registro.tipo === 'saidaAlmoco') {
+      if (isWorking && lastPunchTime) {
+        totalWorkedMillis += currentPunchTime.getTime() - lastPunchTime.getTime();
+      }
+      lastPunchTime = currentPunchTime;
+      isWorking = false;
+      isOnLunch = true;
+    } else if (registro.tipo === 'voltaAlmoco') {
+      if (isOnLunch && lastPunchTime) {
+        // Lunch time is not added to totalWorkedMillis, it's a break.
+        // We just update the lastPunchTime to resume working.
+      }
+      lastPunchTime = currentPunchTime;
+      isWorking = true;
+      isOnLunch = false;
+    } else if (registro.tipo === 'saída') {
+      if (isWorking && lastPunchTime) {
+        totalWorkedMillis += currentPunchTime.getTime() - lastPunchTime.getTime();
+      }
+      lastPunchTime = null; // End of day or segment
+      isWorking = false;
+      isOnLunch = false;
     }
   });
 
-  const horas = Math.floor(totalMilisegundos / 3600000);
-  const minutos = Math.floor((totalMilisegundos % 3600000) / 60000);
+  const horas = Math.floor(totalWorkedMillis / 3600000);
+  const minutos = Math.floor((totalWorkedMillis % 3600000) / 60000);
 
   return `${String(horas).padStart(2, '0')}h ${String(minutos).padStart(2, '0')}m`;
 };

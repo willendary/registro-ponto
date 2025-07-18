@@ -47,6 +47,20 @@ const NotificationSettingsDialog: React.FC<Props> = ({ open, onClose, currentSet
             disabled={!settings.enabled}
           />
 
+          <TimePicker
+            label="Lembrar Saída para Almoço às"
+            value={settings.lunchExitReminderTime}
+            onChange={(newValue) => setSettings({ ...settings, lunchExitReminderTime: newValue })}
+            disabled={!settings.enabled}
+          />
+
+          <TimePicker
+            label="Lembrar Entrada Pós-Almoço às"
+            value={settings.afternoonEntryReminderTime}
+            onChange={(newValue) => setSettings({ ...settings, afternoonEntryReminderTime: newValue })}
+            disabled={!settings.enabled}
+          />
+
           <TextField
             label="Lembrar Saída após (horas)"
             type="number"

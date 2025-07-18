@@ -62,16 +62,9 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
   const calculaTotalHorasPeriodo = (): string => {
     let totalMilisegundos = 0;
     Object.values(registrosAgrupados).forEach(registrosDoDia => {
-      let entradaAnterior: Date | null = null;
-      registrosDoDia.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      registrosDoDia.forEach(registro => {
-        if (registro.tipo === 'entrada') {
-          entradaAnterior = new Date(registro.timestamp);
-        } else if (registro.tipo === 'saída' && entradaAnterior) {
-          totalMilisegundos += new Date(registro.timestamp).getTime() - entradaAnterior.getTime();
-          entradaAnterior = null;
-        }
-      });
+      const horasDoDia = calculaHorasTrabalhadas(registrosDoDia);
+      const [horasStr, minutosStr] = horasDoDia.split('h ').map(s => parseInt(s.replace('m', '')));
+      totalMilisegundos += (horasStr * 3600000) + (minutosStr * 60000);
     });
 
     const horas = Math.floor(totalMilisegundos / 3600000);
@@ -86,16 +79,9 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
 
     let totalMilisegundosPeriodo = 0;
     Object.values(registrosAgrupados).forEach(registrosDoDia => {
-      let entradaAnterior: Date | null = null;
-      registrosDoDia.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      registrosDoDia.forEach(registro => {
-        if (registro.tipo === 'entrada') {
-          entradaAnterior = new Date(registro.timestamp);
-        } else if (registro.tipo === 'saída' && entradaAnterior) {
-          totalMilisegundosPeriodo += new Date(registro.timestamp).getTime() - entradaAnterior.getTime();
-          entradaAnterior = null;
-        }
-      });
+      const horasDoDia = calculaHorasTrabalhadas(registrosDoDia);
+      const [horasStr, minutosStr] = horasDoDia.split('h ').map(s => parseInt(s.replace('m', '')));
+      totalMilisegundosPeriodo += (horasStr * 3600000) + (minutosStr * 60000);
     });
 
     const mediaMilisegundos = totalMilisegundosPeriodo / diasComRegistro;
@@ -113,6 +99,10 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
     const filename = `relatorio_ponto_${periodo}_${formataData(new Date())}.pdf`;
     exportToPdf('relatorio-content', filename);
   };
+
+  function getDisplayTipoRegistro(tipo: string): React.ReactNode {
+    throw new Error('Function not implemented.');
+  }
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
@@ -225,7 +215,7 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
                       <TableBody>
                         {registrosAgrupados[dataDia].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((registro, index) => (
                           <TableRow key={index}>
-                            <TableCell>{registro.tipo.charAt(0).toUpperCase() + registro.tipo.slice(1)}</TableCell>
+                            <TableCell>{getDisplayTipoRegistro(registro.tipo)}</TableCell>
                             <TableCell>{formataHora(new Date(registro.timestamp))}</TableCell>
                             <TableCell align="right">
                               <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>

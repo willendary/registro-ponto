@@ -34,7 +34,9 @@ const RegistroPonto: React.FC<Props> = ({ onRegistro }) => {
     onRegistro();
   };
 
-  const desabilitaEntrada = ultimoRegistro?.tipo === 'entrada';
+  const desabilitaEntrada = ultimoRegistro?.tipo === 'entrada' || ultimoRegistro?.tipo === 'voltaAlmoco';
+  const desabilitaSaidaAlmoco = ultimoRegistro?.tipo === 'saidaAlmoco' || ultimoRegistro?.tipo === 'saída';
+  const desabilitaVoltaAlmoco = ultimoRegistro?.tipo === 'voltaAlmoco' || ultimoRegistro?.tipo === 'entrada';
   const desabilitaSaida = ultimoRegistro?.tipo === 'saída';
 
   return (
@@ -42,11 +44,17 @@ const RegistroPonto: React.FC<Props> = ({ onRegistro }) => {
       <Typography variant="h5" gutterBottom>
         Registrar Ponto
       </Typography>
-      <Box sx={{ display: 'flex', gap: 2, marginBottom: 2 }}>
+      <Box sx={{ display: 'flex', gap: 2, marginBottom: 2, flexWrap: 'wrap' }}>
         <Button variant="contained" color="success" onClick={() => handleRegistro('entrada')} disabled={desabilitaEntrada}>
           Registrar Entrada
         </Button>
-        <Button variant="contained" color="error" onClick={() => handleRegistro('saída')} disabled={desabilitaSaida}>
+        <Button variant="outlined" color="warning" onClick={() => handleRegistro('saidaAlmoco')} disabled={!ultimoRegistro || desabilitaSaidaAlmoco}>
+          Saída Almoço
+        </Button>
+        <Button variant="outlined" color="info" onClick={() => handleRegistro('voltaAlmoco')} disabled={!ultimoRegistro || desabilitaVoltaAlmoco}>
+          Volta Almoço
+        </Button>
+        <Button variant="contained" color="error" onClick={() => handleRegistro('saída')} disabled={!ultimoRegistro || desabilitaSaida}>
           Registrar Saída
         </Button>
       </Box>

@@ -60,52 +60,51 @@ function App() {
       registrosHoje.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       console.log('App: Registros de hoje:', registrosHoje);
 
-      // Lembrete de Entrada
-      const primeiraEntrada = registrosHoje.find(r => r.tipo === 'entrada');
-      const entryReminderAlreadySent = isReminderSent('entry', hoje);
-      console.log('App: Primeira entrada:', primeiraEntrada);
-      console.log('App: Entry reminder already sent for today:', entryReminderAlreadySent);
-
-      if (!primeiraEntrada && settings.entryReminderTime && !entryReminderAlreadySent) {
-        const reminderTime = new Date(settings.entryReminderTime);
+      const isTimeForReminder = (reminderTime: Date | null) => {
+        if (!reminderTime) return false;
         const reminderHour = reminderTime.getHours();
         const reminderMinute = reminderTime.getMinutes();
-        console.log(`App: Entry reminder configured for: ${reminderHour}:${reminderMinute}`);
-        console.log(`App: Current time: ${hoje.getHours()}:${hoje.getMinutes()}`);
-        
-        const isTimeForEntryReminder = hoje.getHours() > reminderHour || (hoje.getHours() === reminderHour && hoje.getMinutes() >= reminderMinute);
-        console.log('App: Is time for entry reminder?', isTimeForEntryReminder);
+        return hoje.getHours() > reminderHour || (hoje.getHours() === reminderHour && hoje.getMinutes() >= reminderMinute);
+      };
 
-        if (isTimeForEntryReminder) {
-          console.log('App: Condition met for entry reminder. Attempting to send notification...');
-          sendNotification('Lembrete de Ponto', { body: 'Não esqueça de registrar sua entrada!' });
-          setReminderSent('entry', hoje);
-          console.log('App: Entry reminder marked as sent.');
-        }
+      // Lembrete de Entrada (Manhã)
+      const primeiraEntrada = registrosHoje.find(r => r.tipo === 'entrada');
+      const entryReminderAlreadySent = isReminderSent('entry', hoje);
+      if (!primeiraEntrada && settings.entryReminderTime && !entryReminderAlreadySent && isTimeForReminder(settings.entryReminderTime)) {
+        sendNotification('Lembrete de Ponto', { body: 'Não esqueça de registrar sua entrada!' });
+        setReminderSent('entry', hoje);
+        console.log('App: Entry reminder marked as sent.');
       }
 
-      // Lembrete de Saída
-      if (primeiraEntrada) {
-        const ultimoRegistro = registrosHoje[registrosHoje.length - 1];
-        const exitReminderAlreadySent = isReminderSent('exit', hoje);
-        console.log('App: Último registro:', ultimoRegistro);
-        console.log('App: Exit reminder already sent for today:', exitReminderAlreadySent);
+      // Lembrete de Saída para Almoço
+      const ultimaEntrada = registrosHoje.filter(r => r.tipo === 'entrada').pop();
+      const ultimaSaidaAlmoco = registrosHoje.filter(r => r.tipo === 'saidaAlmoco').pop();
+      const lunchExitReminderAlreadySent = isReminderSent('lunchExit', hoje);
+      if (ultimaEntrada && !ultimaSaidaAlmoco && settings.lunchExitReminderTime && !lunchExitReminderAlreadySent && isTimeForReminder(settings.lunchExitReminderTime)) {
+        sendNotification('Lembrete de Ponto', { body: 'Não esqueça de registrar sua saída para o almoço!' });
+        setReminderSent('lunchExit', hoje);
+        console.log('App: Lunch exit reminder marked as sent.');
+      }
 
-        if (ultimoRegistro?.tipo === 'entrada' && !exitReminderAlreadySent) {
-          const tempoDesdePrimeiraEntrada = hoje.getTime() - new Date(primeiraEntrada.timestamp).getTime();
-          const duracaoEmMilisegundos = settings.exitReminderDuration * 60 * 60 * 1000;
-          console.log(`App: Exit reminder duration: ${settings.exitReminderDuration} hours (${duracaoEmMilisegundos} ms)`);
-          console.log(`App: Time since first entry: ${tempoDesdePrimeiraEntrada} ms`);
+      // Lembrete de Entrada Pós-Almoço
+      const ultimaVoltaAlmoco = registrosHoje.filter(r => r.tipo === 'voltaAlmoco').pop();
+      const afternoonEntryReminderAlreadySent = isReminderSent('afternoonEntry', hoje);
+      if (ultimaSaidaAlmoco && !ultimaVoltaAlmoco && settings.afternoonEntryReminderTime && !afternoonEntryReminderAlreadySent && isTimeForReminder(settings.afternoonEntryReminderTime)) {
+        sendNotification('Lembrete de Ponto', { body: 'Não esqueça de registrar sua volta do almoço!' });
+        setReminderSent('afternoonEntry', hoje);
+        console.log('App: Afternoon entry reminder marked as sent.');
+      }
 
-          const isTimeForExitReminder = tempoDesdePrimeiraEntrada >= duracaoEmMilisegundos;
-          console.log('App: Is time for exit reminder?', isTimeForExitReminder);
-
-          if (isTimeForExitReminder) {
-            console.log('App: Condition met for exit reminder. Attempting to send notification...');
-            sendNotification('Lembrete de Ponto', { body: `Já se passaram ${settings.exitReminderDuration} horas desde sua entrada. Não esqueça de registrar sua saída!` });
-            setReminderSent('exit', hoje);
-            console.log('App: Exit reminder marked as sent.');
-          }
+      // Lembrete de Saída (Final do Dia)
+      const ultimoRegistro = registrosHoje[registrosHoje.length - 1];
+      const exitReminderAlreadySent = isReminderSent('exit', hoje);
+      if (primeiraEntrada && ultimoRegistro?.tipo !== 'saída' && settings.exitReminderDuration && !exitReminderAlreadySent) {
+        const tempoDesdePrimeiraEntrada = hoje.getTime() - new Date(primeiraEntrada.timestamp).getTime();
+        const duracaoEmMilisegundos = settings.exitReminderDuration * 60 * 60 * 1000;
+        if (tempoDesdePrimeiraEntrada >= duracaoEmMilisegundos) {
+          sendNotification('Lembrete de Ponto', { body: `Já se passaram ${settings.exitReminderDuration} horas desde sua entrada. Não esqueça de registrar sua saída!` });
+          setReminderSent('exit', hoje);
+          console.log('App: Exit reminder marked as sent.');
         }
       }
     };
