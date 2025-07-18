@@ -1,5 +1,5 @@
 import { Registro } from '../types/Registro';
-import { formataData } from './dateUtils';
+import { formataData, getDaysInInterval } from './dateUtils';
 
 const STORAGE_KEY = 'registrosPonto';
 
@@ -70,4 +70,20 @@ export const leRegistrosDoDia = (data: Date): Registro[] => {
   const dia = formataData(data);
   const registros = leRegistros();
   return registros[dia] || [];
+};
+
+export const leRegistrosNoPeriodo = (dataInicio: Date, dataFim: Date): Record<string, Registro[]> => {
+  const registrosCompletos = leRegistros();
+  const registrosNoPeriodo: Record<string, Registro[]> = {};
+
+  const diasNoIntervalo = getDaysInInterval(dataInicio, dataFim);
+
+  diasNoIntervalo.forEach(dia => {
+    const dataFormatada = formataData(dia);
+    if (registrosCompletos[dataFormatada]) {
+      registrosNoPeriodo[dataFormatada] = registrosCompletos[dataFormatada];
+    }
+  });
+
+  return registrosNoPeriodo;
 };

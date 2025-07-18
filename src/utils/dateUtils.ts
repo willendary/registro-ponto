@@ -1,17 +1,13 @@
 import { Registro } from '../types/Registro';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export const formataData = (data: Date): string => {
-  const dia = String(data.getDate()).padStart(2, '0');
-  const mes = String(data.getMonth() + 1).padStart(2, '0');
-  const ano = data.getFullYear();
-  return `${ano}-${mes}-${dia}`;
+  return format(data, 'yyyy-MM-dd');
 };
 
 export const formataHora = (data: Date): string => {
-  const horas = String(data.getHours()).padStart(2, '0');
-  const minutos = String(data.getMinutes()).padStart(2, '0');
-  const segundos = String(data.getSeconds()).padStart(2, '0');
-  return `${horas}:${minutos}:${segundos}`;
+  return format(data, 'HH:mm:ss');
 };
 
 export const calculaHorasTrabalhadas = (registros: Registro[]): string => {
@@ -31,4 +27,24 @@ export const calculaHorasTrabalhadas = (registros: Registro[]): string => {
   const minutos = Math.floor((totalMilisegundos % 3600000) / 60000);
 
   return `${String(horas).padStart(2, '0')}h ${String(minutos).padStart(2, '0')}m`;
+};
+
+export const getStartOfWeek = (date: Date): Date => {
+  return startOfWeek(date, { locale: ptBR });
+};
+
+export const getEndOfWeek = (date: Date): Date => {
+  return endOfWeek(date, { locale: ptBR });
+};
+
+export const getStartOfMonth = (date: Date): Date => {
+  return startOfMonth(date);
+};
+
+export const getEndOfMonth = (date: Date): Date => {
+  return endOfMonth(date);
+};
+
+export const getDaysInInterval = (start: Date, end: Date): Date[] => {
+  return eachDayOfInterval({ start, end });
 };
