@@ -3,7 +3,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { ptBR } from 'date-fns/locale';
-import { Registro } from '../types/Registro';
+import { Registro, TipoRegistro } from '../types/Registro';
 import { formataHora, calculaHorasTrabalhadas, formataData, getStartOfWeek, getEndOfWeek, getStartOfMonth, getEndOfMonth, getDaysInInterval } from '../utils/dateUtils';
 import { Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Box, ToggleButton, ToggleButtonGroup, Accordion, AccordionSummary, AccordionDetails, Button } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
@@ -100,9 +100,20 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
     exportToPdf('relatorio-content', filename);
   };
 
-  function getDisplayTipoRegistro(tipo: string): React.ReactNode {
-    throw new Error('Function not implemented.');
-  }
+  const getDisplayTipoRegistro = (tipo: TipoRegistro): string => {
+    switch (tipo) {
+      case 'entrada':
+        return 'Entrada';
+      case 'saída':
+        return 'Saída';
+      case 'saidaAlmoco':
+        return 'Saída Almoço';
+      case 'voltaAlmoco':
+        return 'Volta Almoço';
+      default:
+        return tipo;
+    }
+  };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>

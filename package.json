@@ -49,6 +49,11 @@
       "last 1 safari version"
     ]
   },
+  "jest": {
+    "transformIgnorePatterns": [
+      "node_modules/(?!(@mui/x-date-pickers|date-fns|@emotion/react|@emotion/styled)/)"
+    ]
+  },
   "devDependencies": {
     "@types/papaparse": "^5.3.16"
   }

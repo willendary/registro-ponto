@@ -12,9 +12,7 @@ export const formataHora = (data: Date): string => {
 
 export const calculaHorasTrabalhadas = (registros: Registro[]): string => {
   let totalWorkedMillis = 0;
-  let lastPunchTime: Date | null = null;
-  let isWorking = false;
-  let isOnLunch = false;
+  let lastWorkingSegmentStart: Date | null = null; // This will track the start of a continuous working period
 
   // Ensure records are sorted by timestamp
   registros.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
@@ -22,32 +20,15 @@ export const calculaHorasTrabalhadas = (registros: Registro[]): string => {
   registros.forEach(registro => {
     const currentPunchTime = new Date(registro.timestamp);
 
-    if (registro.tipo === 'entrada') {
-      lastPunchTime = currentPunchTime;
-      isWorking = true;
-      isOnLunch = false; // Should not be on lunch when entering
-    } else if (registro.tipo === 'saidaAlmoco') {
-      if (isWorking && lastPunchTime) {
-        totalWorkedMillis += currentPunchTime.getTime() - lastPunchTime.getTime();
+    if (registro.tipo === 'entrada' || registro.tipo === 'voltaAlmoco') {
+      // This marks the beginning of a working segment
+      lastWorkingSegmentStart = currentPunchTime;
+    } else if (registro.tipo === 'saidaAlmoco' || registro.tipo === 'saída') {
+      // This marks the end of a working segment
+      if (lastWorkingSegmentStart) {
+        totalWorkedMillis += currentPunchTime.getTime() - lastWorkingSegmentStart.getTime();
+        lastWorkingSegmentStart = null; // Reset for the next working segment
       }
-      lastPunchTime = currentPunchTime;
-      isWorking = false;
-      isOnLunch = true;
-    } else if (registro.tipo === 'voltaAlmoco') {
-      if (isOnLunch && lastPunchTime) {
-        // Lunch time is not added to totalWorkedMillis, it's a break.
-        // We just update the lastPunchTime to resume working.
-      }
-      lastPunchTime = currentPunchTime;
-      isWorking = true;
-      isOnLunch = false;
-    } else if (registro.tipo === 'saída') {
-      if (isWorking && lastPunchTime) {
-        totalWorkedMillis += currentPunchTime.getTime() - lastPunchTime.getTime();
-      }
-      lastPunchTime = null; // End of day or segment
-      isWorking = false;
-      isOnLunch = false;
     }
   });
 

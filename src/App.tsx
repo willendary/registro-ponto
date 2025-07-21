@@ -139,7 +139,7 @@ function App() {
   };
 
   const handleSalvarRegistroManual = (registro: { timestamp: Date, tipo: TipoRegistro }) => {
-    salvaRegistro(registro);
+    salvaRegistro(registro as Registro);
     handleAtualizarRelatorio();
   };
 

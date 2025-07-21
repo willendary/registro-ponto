@@ -14,7 +14,14 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [mode, setMode] = useState<PaletteMode>('light');
+  const [mode, setMode] = useState<PaletteMode>(() => {
+    const storedMode = localStorage.getItem('themeMode');
+    return (storedMode as PaletteMode) || 'light';
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('themeMode', mode);
+  }, [mode]);
 
   const colorMode = useMemo(
     () => ({
