@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { Container, Typography, CssBaseline, AppBar, Toolbar, Tabs, Tab, Box, Button, Card, CardContent, Dialog, DialogActions, DialogTitle, DialogContent, DialogContentText, IconButton } from '@mui/material';
+import { Container, Typography, CssBaseline, AppBar, Toolbar, Box, Button, Card, CardContent, Dialog, DialogActions, DialogTitle, DialogContent, DialogContentText, IconButton } from '@mui/material';
 import PunchClockIcon from '@mui/icons-material/PunchClock';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import SettingsIcon from '@mui/icons-material/Settings';
+import LogoutIcon from '@mui/icons-material/Logout';
 import RegistroPonto from './pages/RegistroPonto';
 import Relatorio from './pages/Relatorio';
 import AdicionarRegistroManualDialog from './components/AdicionarRegistroManualDialog';
@@ -13,14 +14,19 @@ import EditarRegistroDialog from './components/EditarRegistroDialog';
 import NotificationSettingsDialog from './components/NotificationSettingsDialog';
 import { Registro, TipoRegistro } from './types/Registro';
 import { NotificationSettings } from './types/NotificationSettings';
-import { leRegistrosDoDia, salvaRegistro, atualizaRegistro, removeRegistro } from './utils/storage';
+// import { leRegistrosDoDia, salvaRegistro, atualizaRegistro, removeRegistro } from './utils/storage'; // Removido
 import { ThemeContext } from './theme/ThemeContext';
 import { requestNotificationPermission, sendNotification } from './utils/notificationService';
 import { getNotificationSettings, saveNotificationSettings, isReminderSent, setReminderSent } from './utils/notificationStorage';
 
-function App() {
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import Login from './pages/Login';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import PrivateRoute from './components/PrivateRoute';
+import { deletarRegistro, getRegistros } from './services/registroPontoService'; // Adicionado
+
+function AppContent() {
   const [dataSelecionada, setDataSelecionada] = useState<Date>(new Date());
-  const [abaAtiva, setAbaAtiva] = useState(0);
   const [dialogAdicionarAberto, setDialogAdicionarAberto] = useState(false);
   const [dialogEditarAberto, setDialogEditarAberto] = useState(false);
   const [dialogExcluirAberto, setDialogExcluirAberto] = useState(false);
@@ -33,6 +39,10 @@ function App() {
     throw new Error("useTheme must be used within a ThemeProvider");
   }
   const { toggleColorMode, mode } = themeContext;
+
+  const { isAuthenticated, logout, token, getUserIdFromToken } = useAuth(); // Adicionado token e getUserIdFromToken
+  const userId = getUserIdFromToken();
+  const navigate = useNavigate();
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -52,13 +62,28 @@ function App() {
       return;
     }
 
-    const checkReminders = () => {
+    const checkReminders = async () => { // Alterado para async
       console.log('App: checkReminders running at:', new Date().toLocaleTimeString());
       console.log('App: Current Notification.permission:', Notification.permission);
       const hoje = new Date();
-      const registrosHoje = leRegistrosDoDia(hoje);
-      registrosHoje.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      console.log('App: Registros de hoje:', registrosHoje);
+
+      let registrosHoje: Registro[] = [];
+      if (token && userId) {
+        try {
+          const allRegistros = await getRegistros(token, userId);
+          registrosHoje = allRegistros.filter(r => {
+            const registroDate = new Date(r.timestamp);
+            return r.usuarioId === userId &&
+                   registroDate.getDate() === hoje.getDate() &&
+                   registroDate.getMonth() === hoje.getMonth() &&
+                   registroDate.getFullYear() === hoje.getFullYear();
+          });
+          registrosHoje.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        } catch (error) {
+          console.error("Erro ao buscar registros para lembretes:", error);
+          return; // Não prossegue com lembretes se não conseguir buscar registros
+        }
+      }
 
       const isTimeForReminder = (reminderTime: Date | null) => {
         if (!reminderTime) return false;
@@ -87,9 +112,10 @@ function App() {
       }
 
       // Lembrete de Entrada Pós-Almoço
+      const ultimaSaidaAlmocoValida = registrosHoje.filter(r => r.tipo === 'saidaAlmoco').pop();
       const ultimaVoltaAlmoco = registrosHoje.filter(r => r.tipo === 'voltaAlmoco').pop();
       const afternoonEntryReminderAlreadySent = isReminderSent('afternoonEntry', hoje);
-      if (ultimaSaidaAlmoco && !ultimaVoltaAlmoco && settings.afternoonEntryReminderTime && !afternoonEntryReminderAlreadySent && isTimeForReminder(settings.afternoonEntryReminderTime)) {
+      if (ultimaSaidaAlmocoValida && !ultimaVoltaAlmoco && settings.afternoonEntryReminderTime && !afternoonEntryReminderAlreadySent && isTimeForReminder(settings.afternoonEntryReminderTime)) {
         sendNotification('Lembrete de Ponto', { body: 'Não esqueça de registrar sua volta do almoço!' });
         setReminderSent('afternoonEntry', hoje);
         console.log('App: Afternoon entry reminder marked as sent.');
@@ -126,11 +152,7 @@ function App() {
         console.log('App: useEffect cleanup: Notification interval cleared.');
       }
     };
-  }, [notificationSettings]);
-
-  const handleMudancaAba = (event: React.SyntheticEvent, novaAba: number) => {
-    setAbaAtiva(novaAba);
-  };
+  }, [notificationSettings, token, userId]); // Adicionado token e userId como dependências
 
   const handleDataChange = (novaData: Date | null) => {
     if (novaData) {
@@ -138,8 +160,7 @@ function App() {
     }
   };
 
-  const handleSalvarRegistroManual = (registro: { timestamp: Date, tipo: TipoRegistro }) => {
-    salvaRegistro(registro as Registro);
+  const handleSalvarRegistroManual = () => { // onSave agora não recebe registro, apenas notifica
     handleAtualizarRelatorio();
   };
 
@@ -148,11 +169,8 @@ function App() {
     setDialogEditarAberto(true);
   };
 
-  const handleSalvarEdicao = (registroEditado: Registro) => {
-    if (registroSelecionado) {
-      atualizaRegistro(registroEditado, registroSelecionado.timestamp);
-      handleAtualizarRelatorio();
-    }
+  const handleSalvarEdicao = () => { // onSave agora não recebe registro, apenas notifica
+    handleAtualizarRelatorio();
   };
 
   const handleAbrirExcluir = (registro: Registro) => {
@@ -160,12 +178,17 @@ function App() {
     setDialogExcluirAberto(true);
   };
 
-  const handleConfirmarExclusao = () => {
-    if (registroSelecionado) {
-      removeRegistro(registroSelecionado);
-      handleAtualizarRelatorio();
-      setDialogExcluirAberto(false);
-      setRegistroSelecionado(null);
+  const handleConfirmarExclusao = async () => {
+    if (registroSelecionado && registroSelecionado.id !== undefined && token) {
+      try {
+        await deletarRegistro(registroSelecionado.id, token);
+        handleAtualizarRelatorio();
+        setDialogExcluirAberto(false);
+        setRegistroSelecionado(null);
+      } catch (error) {
+        console.error("Erro ao excluir registro:", error);
+        // Adicionar feedback de erro para o usuário, se necessário
+      }
     }
   };
 
@@ -174,6 +197,11 @@ function App() {
     saveNotificationSettings(settings);
     setNotificationSettings(settings);
     setDialogSettingsAberto(false);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   return (
@@ -185,25 +213,37 @@ function App() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Registro de Ponto
           </Typography>
-          <IconButton sx={{ ml: 1 }} onClick={toggleColorMode} color="inherit">
-            {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-          </IconButton>
-          <IconButton sx={{ ml: 1 }} onClick={() => setDialogSettingsAberto(true)} color="inherit">
-            <SettingsIcon />
-          </IconButton>
+          {isAuthenticated && (
+            <>
+              <Button color="inherit" component={Link} to="/registro-ponto">
+                <PunchClockIcon sx={{ mr: 1 }} /> Registrar Ponto
+              </Button>
+              <Button color="inherit" component={Link} to="/relatorio">
+                <AssessmentIcon sx={{ mr: 1 }} /> Relatórios
+              </Button>
+              <IconButton sx={{ ml: 1 }} onClick={toggleColorMode} color="inherit">
+                {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+              </IconButton>
+              <IconButton sx={{ ml: 1 }} onClick={() => setDialogSettingsAberto(true)} color="inherit">
+                <SettingsIcon />
+              </IconButton>
+              <IconButton sx={{ ml: 1 }} onClick={handleLogout} color="inherit">
+                <LogoutIcon />
+              </IconButton>
+            </>
+          )}
         </Toolbar>
       </AppBar>
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={abaAtiva} onChange={handleMudancaAba} centered>
-            <Tab label="Registrar Ponto" icon={<PunchClockIcon />} iconPosition="start" />
-            <Tab label="Relatórios" icon={<AssessmentIcon />} iconPosition="start" />
-          </Tabs>
-        </Box>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<PrivateRoute><RegistroPonto onRegistro={handleAtualizarRelatorio} /></PrivateRoute>} />
+          <Route path="/registro-ponto" element={<PrivateRoute><RegistroPonto onRegistro={handleAtualizarRelatorio} /></PrivateRoute>} />
+          <Route path="/relatorio" element={<PrivateRoute><Relatorio data={dataSelecionada} onDataChange={handleDataChange} onEdit={handleAbrirEditar} onDelete={handleAbrirExcluir} /></PrivateRoute>} />
+        </Routes>
 
-        {abaAtiva === 0 && (
-          <Box sx={{ mt: 3 }}>
-            <RegistroPonto onRegistro={handleAtualizarRelatorio} />
+        {isAuthenticated && (
+          <>
             <Card sx={{ mt: 3 }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -221,18 +261,7 @@ function App() {
                 </Button>
               </CardContent>
             </Card>
-          </Box>
-        )}
-
-        {abaAtiva === 1 && (
-          <Box sx={{ mt: 3 }}>
-            <Relatorio
-              data={dataSelecionada}
-              onDataChange={handleDataChange}
-              onEdit={handleAbrirEditar}
-              onDelete={handleAbrirExcluir}
-            />
-          </Box>
+          </>
         )}
       </Container>
 
@@ -272,6 +301,16 @@ function App() {
         onSave={handleSaveNotificationSettings}
       />
     </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </Router>
   );
 }
 

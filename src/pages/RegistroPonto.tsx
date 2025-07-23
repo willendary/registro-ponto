@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Box, Typography, Paper } from '@mui/material';
+import { Button, Box, Typography, Paper, Alert } from '@mui/material';
 import { Registro, TipoRegistro } from '../types/Registro';
-import { salvaRegistro, leRegistrosDoDia } from '../utils/storage';
 import { formataHora } from '../utils/dateUtils';
+import { useAuth } from '../context/AuthContext';
+import { registrarPonto, getRegistros } from '../services/registroPontoService';
 
 interface Props {
   onRegistro: () => void;
@@ -10,28 +11,65 @@ interface Props {
 
 const RegistroPonto: React.FC<Props> = ({ onRegistro }) => {
   const [ultimoRegistro, setUltimoRegistro] = useState<Registro | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { token, getUserIdFromToken } = useAuth();
+  const userId = getUserIdFromToken();
 
-  const atualizaUltimoRegistro = () => {
-    const registrosDeHoje = leRegistrosDoDia(new Date());
-    registrosDeHoje.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    const ultimo = registrosDeHoje.length > 0 ? registrosDeHoje[registrosDeHoje.length - 1] : null;
-    setUltimoRegistro(ultimo);
+  const fetchUltimoRegistro = async () => {
+    if (!token || !userId) {
+      setError('Usuário não autenticado.');
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const allRegistros = await getRegistros(token, userId);
+      console.log('Todos os registros da API (filtrados por usuário):', allRegistros);
+      const registrosDoUsuarioHoje = allRegistros.filter(r => {
+        const registroDate = new Date(r.timestamp);
+        const today = new Date();
+        const isToday = registroDate.getUTCFullYear() === today.getUTCFullYear() &&
+                        registroDate.getUTCMonth() === today.getUTCMonth() &&
+                        registroDate.getUTCDate() === today.getUTCDate();
+        return isToday;
+      });
+      console.log('Registros do usuário hoje:', registrosDoUsuarioHoje);
+
+      registrosDoUsuarioHoje.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      const ultimo = registrosDoUsuarioHoje.length > 0 ? registrosDoUsuarioHoje[registrosDoUsuarioHoje.length - 1] : null;
+      setUltimoRegistro(ultimo);
+    } catch (err: any) {
+      console.error("Erro ao buscar registros:", err);
+      setError('Erro ao carregar registros. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    atualizaUltimoRegistro();
-    // Adiciona um listener para focar na janela e atualizar, garantindo que os dados estejam sempre sincronizados
-    window.addEventListener('focus', atualizaUltimoRegistro);
+    fetchUltimoRegistro();
+    window.addEventListener('focus', fetchUltimoRegistro);
     return () => {
-      window.removeEventListener('focus', atualizaUltimoRegistro);
+      window.removeEventListener('focus', fetchUltimoRegistro);
     };
-  }, []);
+  }, [token, userId]);
 
-  const handleRegistro = (tipo: TipoRegistro) => {
-    const novoRegistro: Registro = { timestamp: new Date(), tipo };
-    salvaRegistro(novoRegistro);
-    atualizaUltimoRegistro();
-    onRegistro();
+  const handleRegistro = async (tipo: TipoRegistro) => {
+    if (!token || !userId) {
+      setError('Usuário não autenticado. Faça login novamente.');
+      return;
+    }
+    try {
+      setError(null);
+      await registrarPonto(tipo, token, userId);
+      await fetchUltimoRegistro(); // Atualiza o último registro após salvar
+      onRegistro(); // Notifica o componente pai (App) para atualizar relatórios
+    } catch (err: any) {
+      console.error("Erro ao registrar ponto:", err);
+      setError('Erro ao registrar ponto. Tente novamente.');
+    }
   };
 
   const desabilitaEntrada = ultimoRegistro?.tipo === 'entrada' || ultimoRegistro?.tipo === 'voltaAlmoco';
@@ -39,11 +77,16 @@ const RegistroPonto: React.FC<Props> = ({ onRegistro }) => {
   const desabilitaVoltaAlmoco = ultimoRegistro?.tipo === 'voltaAlmoco' || ultimoRegistro?.tipo === 'entrada';
   const desabilitaSaida = ultimoRegistro?.tipo === 'saída';
 
+  if (loading) {
+    return <Typography>Carregando...</Typography>;
+  }
+
   return (
     <Paper elevation={3} sx={{ padding: 2, marginBottom: 2 }}>
       <Typography variant="h5" gutterBottom>
         Registrar Ponto
       </Typography>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       <Box sx={{ display: 'flex', gap: 2, marginBottom: 2, flexWrap: 'wrap' }}>
         <Button variant="contained" color="success" onClick={() => handleRegistro('entrada')} disabled={desabilitaEntrada}>
           Registrar Entrada

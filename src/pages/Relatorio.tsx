@@ -5,15 +5,16 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { ptBR } from 'date-fns/locale';
 import { Registro, TipoRegistro } from '../types/Registro';
 import { formataHora, calculaHorasTrabalhadas, formataData, getStartOfWeek, getEndOfWeek, getStartOfMonth, getEndOfMonth, getDaysInInterval } from '../utils/dateUtils';
-import { Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Box, ToggleButton, ToggleButtonGroup, Accordion, AccordionSummary, AccordionDetails, Button } from '@mui/material';
+import { Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Box, ToggleButton, ToggleButtonGroup, Accordion, AccordionSummary, AccordionDetails, Button, Alert } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import DownloadIcon from '@mui/icons-material/Download';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import { leRegistrosNoPeriodo } from '../utils/storage';
 import { exportarRegistrosParaCSV } from '../utils/exportUtils';
 import { exportToPdf } from '../utils/pdfExportUtils';
+import { useAuth } from '../context/AuthContext';
+import { getRegistros, atualizarRegistro, deletarRegistro } from '../services/registroPontoService';
 
 interface Props {
   data: Date;
@@ -28,30 +29,72 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
   const [periodo, setPeriodo] = useState<PeriodoRelatorio>('diario');
   const [registrosExibidos, setRegistrosExibidos] = useState<Registro[]>([]);
   const [registrosAgrupados, setRegistrosAgrupados] = useState<Record<string, Registro[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { token, getUserIdFromToken } = useAuth();
+  const userId = getUserIdFromToken();
+
+  const fetchRegistros = async () => {
+    if (!token || !userId) {
+      setError('Usuário não autenticado.');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const allRegistros = await getRegistros(token, userId);
+      const registrosDoUsuario = allRegistros.filter(r => r.usuarioId === userId);
+
+      let dataInicio: Date = new Date(Date.UTC(data.getFullYear(), data.getMonth(), data.getDate()));
+      let dataFim: Date = new Date(Date.UTC(data.getFullYear(), data.getMonth(), data.getDate(), 23, 59, 59, 999));
+
+      if (periodo === 'semanal') {
+        dataInicio = getStartOfWeek(data);
+        dataFim = getEndOfWeek(data);
+      } else if (periodo === 'mensal') {
+        dataInicio = getStartOfMonth(data);
+        dataFim = getEndOfMonth(data);
+      }
+
+      const filteredRegistros = registrosDoUsuario.filter(r => {
+        const registroDate = new Date(r.timestamp);
+        return registroDate.getTime() >= dataInicio.getTime() && registroDate.getTime() <= dataFim.getTime();
+      });
+
+      const grouped: Record<string, Registro[]> = {};
+      filteredRegistros.forEach(registro => {
+        const dateKey = formataData(new Date(registro.timestamp));
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = [];
+        }
+        grouped[dateKey].push(registro);
+      });
+
+      // Sort records within each day
+      for (const dateKey in grouped) {
+        grouped[dateKey].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      }
+
+      setRegistrosAgrupados(grouped);
+
+      if (periodo === 'diario') {
+        const registrosDoDia = grouped[formataData(data)] || [];
+        setRegistrosExibidos(registrosDoDia);
+      } else {
+        setRegistrosExibidos([]);
+      }
+    } catch (err: any) {
+      console.error("Erro ao buscar registros:", err);
+      setError('Erro ao carregar registros. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let dataInicio: Date = data;
-    let dataFim: Date = data;
-
-    if (periodo === 'semanal') {
-      dataInicio = getStartOfWeek(data);
-      dataFim = getEndOfWeek(data);
-    } else if (periodo === 'mensal') {
-      dataInicio = getStartOfMonth(data);
-      dataFim = getEndOfMonth(data);
-    }
-
-    const todosRegistrosNoPeriodo = leRegistrosNoPeriodo(dataInicio, dataFim);
-    setRegistrosAgrupados(todosRegistrosNoPeriodo);
-
-    if (periodo === 'diario') {
-      const registrosDoDia = todosRegistrosNoPeriodo[formataData(data)] || [];
-      registrosDoDia.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      setRegistrosExibidos(registrosDoDia);
-    } else {
-      setRegistrosExibidos([]); // Limpa a exibição detalhada para semanal/mensal
-    }
-  }, [data, periodo]);
+    fetchRegistros();
+  }, [data, periodo, token, userId]);
 
   const handlePeriodoChange = (event: React.MouseEvent<HTMLElement>, newPeriodo: PeriodoRelatorio | null) => {
     if (newPeriodo) {
@@ -115,6 +158,10 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
     }
   };
 
+  if (loading) {
+    return <Typography>Carregando...</Typography>;
+  }
+
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
       <Paper elevation={3} sx={{ padding: 2 }} id="relatorio-content">
@@ -138,6 +185,8 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
             </Button>
           </Box>
         </Box>
+
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
         <ToggleButtonGroup
           value={periodo}
@@ -186,7 +235,7 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
               </TableHead>
               <TableBody>
                 {registrosExibidos.map((registro, index) => (
-                  <TableRow key={index}>
+                  <TableRow key={registro.id || index}>
                     <TableCell>{registro.tipo.charAt(0).toUpperCase() + registro.tipo.slice(1)}</TableCell>
                     <TableCell>{formataHora(new Date(registro.timestamp))}</TableCell>
                     <TableCell align="right">
@@ -225,7 +274,7 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
                       </TableHead>
                       <TableBody>
                         {registrosAgrupados[dataDia].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((registro, index) => (
-                          <TableRow key={index}>
+                          <TableRow key={registro.id || index}>
                             <TableCell>{getDisplayTipoRegistro(registro.tipo)}</TableCell>
                             <TableCell>{formataHora(new Date(registro.timestamp))}</TableCell>
                             <TableCell align="right">
