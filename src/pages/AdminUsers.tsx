@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, FormControl, InputLabel, Alert } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import PersonOffIcon from '@mui/icons-material/PersonOff';
+import PersonIcon from '@mui/icons-material/Person';
 import AddIcon from '@mui/icons-material/Add';
 import { useAuth } from '../context/AuthContext';
 import { UsuarioDTO, UsuarioResponseDTO, RegistroUsuarioDTO } from '../types/Usuario';
-import { getAllUsers, createUser, updateUser, deleteUser, getRoles } from '../services/adminService';
+import { getAllUsers, createUser, updateUser, inactiveUser, reactivateUser, getRoles } from '../services/adminService';
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<UsuarioResponseDTO[]>([]);
@@ -130,17 +131,21 @@ const AdminUsers: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
+  const handleToggleUserStatus = async (user: UsuarioResponseDTO) => {
     if (!token) {
       setError('Token de autenticação ausente.');
       return;
     }
     setError(null);
     try {
-      await deleteUser(id, token);
+      if (user.isAtivo) {
+        await inactiveUser(user.id, token);
+      } else {
+        await reactivateUser(user.id, token);
+      }
       fetchUsersAndRoles(); // Recarrega a lista
     } catch (err: any) {
-      console.error("Erro ao deletar usuário:", err); // Log the raw error
+      console.error("Erro ao alterar status do usuário:", err); // Log the raw error
       let errorMessage = 'Erro desconhecido.';
       if (err.response && err.response.data) {
         if (typeof err.response.data === 'string') {
@@ -184,21 +189,23 @@ const AdminUsers: React.FC = () => {
               <TableCell>Nome</TableCell>
               <TableCell>Email</TableCell>
               <TableCell>Roles</TableCell>
+              <TableCell>Status</TableCell>
               <TableCell align="right">Ações</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {users.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>{user.nome}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{Array.isArray(user.roles) ? user.roles.join(', ') : user.roles || ''}</TableCell>
+              <TableRow key={user.id} sx={{ backgroundColor: user.isAtivo ? 'inherit' : '#f5f5f5' }}>
+                <TableCell sx={{ color: user.isAtivo ? 'inherit' : 'text.secondary' }}>{user.nome}</TableCell>
+                <TableCell sx={{ color: user.isAtivo ? 'inherit' : 'text.secondary' }}>{user.email}</TableCell>
+                <TableCell sx={{ color: user.isAtivo ? 'inherit' : 'text.secondary' }}>{Array.isArray(user.roles) ? user.roles.join(', ') : user.roles || ''}</TableCell>
+                <TableCell sx={{ color: user.isAtivo ? 'inherit' : 'text.secondary' }}>{user.isAtivo ? 'Ativo' : 'Inativo'}</TableCell>
                 <TableCell align="right">
-                  <IconButton onClick={() => handleOpenEditDialog(user)} color="primary">
+                  <IconButton onClick={() => handleOpenEditDialog(user)} color="primary" disabled={!user.isAtivo}>
                     <EditIcon />
                   </IconButton>
-                  <IconButton onClick={() => handleDeleteUser(user.id)} color="error">
-                    <DeleteIcon />
+                  <IconButton onClick={() => handleToggleUserStatus(user)} color={user.isAtivo ? "error" : "success"}>
+                    {user.isAtivo ? <PersonOffIcon /> : <PersonIcon />}
                   </IconButton>
                 </TableCell>
               </TableRow>

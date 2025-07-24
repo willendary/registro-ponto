@@ -39,8 +39,16 @@ export const updateUser = async (userId: string, userData: UsuarioDTO, token: st
   });
 };
 
-export const deleteUser = async (userId: string, token: string): Promise<void> => {
+export const inactiveUser = async (userId: string, token: string): Promise<void> => {
   await axios.delete(`${API_URL}/${userId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+};
+
+export const reactivateUser = async (userId: string, token: string): Promise<void> => {
+  await axios.post(`${API_URL}/${userId}/reactivate`, {}, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
