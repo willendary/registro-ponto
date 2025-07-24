@@ -21,9 +21,11 @@ import { getNotificationSettings, saveNotificationSettings, isReminderSent, setR
 
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
-import { deletarRegistro, getRegistros } from './services/registroPontoService'; // Adicionado
+import { deletarRegistro, getRegistros } from './services/registroPontoService';
+import AdminUsers from './pages/AdminUsers';
 
 function AppContent() {
   const [dataSelecionada, setDataSelecionada] = useState<Date>(new Date());
@@ -40,8 +42,10 @@ function AppContent() {
   }
   const { toggleColorMode, mode } = themeContext;
 
-  const { isAuthenticated, logout, token, getUserIdFromToken } = useAuth(); // Adicionado token e getUserIdFromToken
+  const { isAuthenticated, logout, token, getUserIdFromToken, getUserRolesFromToken } = useAuth();
   const userId = getUserIdFromToken();
+  const userRoles = getUserRolesFromToken();
+  const isAdmin = userRoles.includes('Admin');
   const navigate = useNavigate();
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -179,16 +183,21 @@ function AppContent() {
   };
 
   const handleConfirmarExclusao = async () => {
+    console.log("Tentando confirmar exclusão...");
     if (registroSelecionado && registroSelecionado.id !== undefined && token) {
+      console.log("Dados para exclusão: ID=", registroSelecionado.id, "Token presente=", !!token);
       try {
         await deletarRegistro(registroSelecionado.id, token);
+        console.log("Registro excluído com sucesso!");
         handleAtualizarRelatorio();
         setDialogExcluirAberto(false);
         setRegistroSelecionado(null);
-      } catch (error) {
-        console.error("Erro ao excluir registro:", error);
+      } catch (error: any) {
+        console.error("Erro ao excluir registro:", error.response?.data || error.message);
         // Adicionar feedback de erro para o usuário, se necessário
       }
+    } else {
+      console.log("Não foi possível excluir: registroSelecionado ou ID ou token ausente.", { registroSelecionado, token });
     }
   };
 
@@ -221,6 +230,11 @@ function AppContent() {
               <Button color="inherit" component={Link} to="/relatorio">
                 <AssessmentIcon sx={{ mr: 1 }} /> Relatórios
               </Button>
+              {isAdmin && (
+                <Button color="inherit" component={Link} to="/admin/users">
+                  Gerenciar Usuários
+                </Button>
+              )}
               <IconButton sx={{ ml: 1 }} onClick={toggleColorMode} color="inherit">
                 {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
               </IconButton>
@@ -237,9 +251,11 @@ function AppContent() {
       <Container maxWidth="md" sx={{ mt: 4 }}>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/" element={<PrivateRoute><RegistroPonto onRegistro={handleAtualizarRelatorio} /></PrivateRoute>} />
           <Route path="/registro-ponto" element={<PrivateRoute><RegistroPonto onRegistro={handleAtualizarRelatorio} /></PrivateRoute>} />
           <Route path="/relatorio" element={<PrivateRoute><Relatorio data={dataSelecionada} onDataChange={handleDataChange} onEdit={handleAbrirEditar} onDelete={handleAbrirExcluir} /></PrivateRoute>} />
+          <Route path="/admin/users" element={<PrivateRoute><AdminUsers /></PrivateRoute>} />
         </Routes>
 
         {isAuthenticated && (

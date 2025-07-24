@@ -43,27 +43,25 @@ const Relatorio: React.FC<Props> = ({ data, onDataChange, onEdit, onDelete }) =>
     setLoading(true);
     setError(null);
     try {
-      const allRegistros = await getRegistros(token, userId);
-      const registrosDoUsuario = allRegistros.filter(r => r.usuarioId === userId);
+      let dataInicioFiltro: Date | undefined;
+      let dataFimFiltro: Date | undefined;
 
-      let dataInicio: Date = new Date(Date.UTC(data.getFullYear(), data.getMonth(), data.getDate()));
-      let dataFim: Date = new Date(Date.UTC(data.getFullYear(), data.getMonth(), data.getDate(), 23, 59, 59, 999));
-
-      if (periodo === 'semanal') {
-        dataInicio = getStartOfWeek(data);
-        dataFim = getEndOfWeek(data);
+      if (periodo === 'diario') {
+        dataInicioFiltro = new Date(Date.UTC(data.getFullYear(), data.getMonth(), data.getDate()));
+        dataFimFiltro = new Date(Date.UTC(data.getFullYear(), data.getMonth(), data.getDate(), 23, 59, 59, 999));
+      } else if (periodo === 'semanal') {
+        dataInicioFiltro = getStartOfWeek(data);
+        dataFimFiltro = getEndOfWeek(data);
       } else if (periodo === 'mensal') {
-        dataInicio = getStartOfMonth(data);
-        dataFim = getEndOfMonth(data);
+        dataInicioFiltro = getStartOfMonth(data);
+        dataFimFiltro = getEndOfMonth(data);
       }
 
-      const filteredRegistros = registrosDoUsuario.filter(r => {
-        const registroDate = new Date(r.timestamp);
-        return registroDate.getTime() >= dataInicio.getTime() && registroDate.getTime() <= dataFim.getTime();
-      });
+      const allRegistros = await getRegistros(token, userId, dataInicioFiltro, dataFimFiltro);
+      const registrosDoUsuario = allRegistros; // A API já filtra por usuário e data
 
       const grouped: Record<string, Registro[]> = {};
-      filteredRegistros.forEach(registro => {
+      registrosDoUsuario.forEach(registro => {
         const dateKey = formataData(new Date(registro.timestamp));
         if (!grouped[dateKey]) {
           grouped[dateKey] = [];

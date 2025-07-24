@@ -25,17 +25,13 @@ const RegistroPonto: React.FC<Props> = ({ onRegistro }) => {
     try {
       setLoading(true);
       setError(null);
-      const allRegistros = await getRegistros(token, userId);
-      console.log('Todos os registros da API (filtrados por usuário):', allRegistros);
-      const registrosDoUsuarioHoje = allRegistros.filter(r => {
-        const registroDate = new Date(r.timestamp);
-        const today = new Date();
-        const isToday = registroDate.getUTCFullYear() === today.getUTCFullYear() &&
-                        registroDate.getUTCMonth() === today.getUTCMonth() &&
-                        registroDate.getUTCDate() === today.getUTCDate();
-        return isToday;
-      });
-      console.log('Registros do usuário hoje:', registrosDoUsuarioHoje);
+      const today = new Date();
+      const dataInicio = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+      const dataFim = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999));
+
+      const allRegistros = await getRegistros(token, userId, dataInicio, dataFim);
+      console.log('Todos os registros da API (filtrados por usuário e dia):', allRegistros);
+      const registrosDoUsuarioHoje = allRegistros; // A API já filtra por usuário e data
 
       registrosDoUsuarioHoje.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       const ultimo = registrosDoUsuarioHoje.length > 0 ? registrosDoUsuarioHoje[registrosDoUsuarioHoje.length - 1] : null;

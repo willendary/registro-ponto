@@ -67,6 +67,14 @@ const Login: React.FC = () => {
           >
             Entrar
           </Button>
+          <Button
+            fullWidth
+            variant="outlined"
+            sx={{ mt: 1, mb: 2 }}
+            onClick={() => navigate('/register')}
+          >
+            Registrar
+          </Button>
           {error && <Alert severity="error">{error}</Alert>}
         </Box>
       </Box>

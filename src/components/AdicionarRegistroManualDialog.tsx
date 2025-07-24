@@ -43,7 +43,7 @@ const AdicionarRegistroManualDialog: React.FC<Props> = ({ open, onClose, onSave 
       timestamp.setSeconds(hora.getSeconds());
 
       // A função registrarPonto já espera o tipo, token e userId
-      await registrarPonto(tipo, token, userId);
+      await registrarPonto(tipo, token, userId, timestamp);
       setSuccess('Registro adicionado com sucesso!');
       onSave(); // Notifica o componente pai para atualizar os dados
       setTimeout(() => {

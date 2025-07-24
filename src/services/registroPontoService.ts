@@ -11,8 +11,8 @@ interface RegistroPontoDTO {
 
 type ApiResponse<T> = T | { value: T } | { $values: T };
 
-export const registrarPonto = async (tipo: TipoRegistro, token: string, userId: string) => {
-  const dataHora = new Date().toISOString();
+export const registrarPonto = async (tipo: TipoRegistro, token: string, userId: string, dataHoraManual?: Date) => {
+  const dataHora = dataHoraManual ? dataHoraManual.toISOString() : new Date().toISOString();
   const registroDto: RegistroPontoDTO = {
     usuarioId: userId,
     dataHora: dataHora,
@@ -27,24 +27,37 @@ export const registrarPonto = async (tipo: TipoRegistro, token: string, userId: 
   return response.data;
 };
 
-export const getRegistros = async (token: string, userId: string): Promise<Registro[]> => {
-  const response = await axios.get<ApiResponse<Registro[]>>(`${API_URL}/ByUsuario/${userId}`, {
+export const getRegistros = async (token: string, userId: string, dataInicio?: Date, dataFim?: Date): Promise<Registro[]> => {
+  let url = `${API_URL}/ByUsuario/${userId}`;
+  const params: any = {};
+
+  if (dataInicio) {
+    params.dataInicio = dataInicio.toISOString();
+  }
+  if (dataFim) {
+    params.dataFim = dataFim.toISOString();
+  }
+
+  const response = await axios.get<ApiResponse<Registro[]>>(url, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    params: params,
   });
   console.log('Resposta bruta da API:', response.data);
   // Verifica se a resposta é um array diretamente ou se está aninhada em uma propriedade 'value' ou '$values'
-  if (Array.isArray(response.data)) {
-    return response.data.map((r: any) => ({ ...r, timestamp: new Date(r.dataHora) }));
+  let dataToProcess: any[] = [];
+  if (typeof response.data === 'object' && response.data !== null && '$values' in response.data && Array.isArray(response.data.$values)) {
+    dataToProcess = response.data.$values;
   } else if (typeof response.data === 'object' && response.data !== null && 'value' in response.data && Array.isArray(response.data.value)) {
-    return response.data.value.map((r: any) => ({ ...r, timestamp: new Date(r.dataHora) }));
-  } else if (typeof response.data === 'object' && response.data !== null && '$values' in response.data && Array.isArray(response.data.$values)) {
-    return response.data.$values.map((r: any) => ({ ...r, timestamp: new Date(r.dataHora) }));
+    dataToProcess = response.data.value;
+  } else if (Array.isArray(response.data)) {
+    dataToProcess = response.data;
   } else {
     console.error('Formato de resposta inesperado:', response.data);
     throw new Error('Formato de dados de registro inesperado.');
   }
+  return dataToProcess.map((r: any) => ({ ...r, timestamp: new Date(r.dataHora) }));
 };
 
 export const atualizarRegistro = async (id: number, registro: Registro, token: string) => {
